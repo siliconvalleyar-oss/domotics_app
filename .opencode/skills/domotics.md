@@ -9,11 +9,19 @@ cd domotics_app
 flutter pub get
 flutter run                    # Desarrollo
 flutter build apk --release    # Android
+adb install -r build/app/outputs/flutter-apk/app-release.apk
+```
+
+## Deep Clean + Build Completo
+```bash
+rm -rf build/ .dart_tool/ pubspec.lock && flutter clean && flutter pub get
+flutter build apk --release
+adb install -r build/app/outputs/flutter-apk/app-release.apk
 ```
 
 ## Dependencias
 ```bash
-flutter pub add mqtt_client font_awesome_flutter animations shared_preferences
+flutter pub add mqtt_client font_awesome_flutter animations shared_preferences adb_wifi
 ```
 
 ## Arquitectura
@@ -55,4 +63,28 @@ lib/
 ## Assets
 - `assets/fonts/WorkSans-*.ttf`
 - `assets/fonts/Roboto-*.ttf`
-- `assets/images/` (opcional)
+- `assets/logo.png` (icono app + launcher Android)
+- Generar launcher icons desde `assets/logo.png`:
+  ```bash
+  python3 -c "
+  from PIL import Image
+  logo = Image.open('assets/logo.png').convert('RGBA')
+  sizes = {'mdpi':48,'hdpi':72,'xhdpi':96,'xxhdpi':144,'xxxhdpi':192}
+  for d,s in sizes.items():
+      r=logo.resize((s,s),Image.LANCZOS)
+      r.save(f'android/app/src/main/res/mipmap-{d}/ic_launcher.png')
+      r.save(f'android/app/src/main/res/mipmap-{d}/ic_launcher_round.png')
+  logo.resize((432,432),Image.LANCZOS).save('android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png')
+  "
+  ```
+
+## Dispositivo Físico (Xiaomi)
+- Conectar vía WiFi ADB: `adb connect 192.168.1.34:33515`
+- Si falla `INSTALL_FAILED_USER_RESTRICTED`:
+  - Activar "Instalar vía USB" y "Depuración USB (Configuración de seguridad)" en Opciones de desarrollador
+  - Desbloquear pantalla y aceptar el prompt de instalación
+
+## Sincronización Raspberry Pi
+- La app se conecta al broker MQTT (Mosquitto) en la Raspberry
+- Los comandos se envían a `domotics/{type}` y la Raspberry publica estados en `domotics/{type}/status`
+- Escáner de red descubre brokers automáticamente en la subred /24

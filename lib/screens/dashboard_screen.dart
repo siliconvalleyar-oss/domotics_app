@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:animations/animations.dart';
 import '../app_theme.dart';
@@ -135,8 +134,8 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
     return AppBar(
       title: Row(
         children: [
-          SvgPicture.asset(
-            'assets/logo.svg',
+          Image.asset(
+            'assets/linux.png',
             width: 32,
             height: 32,
           ),
