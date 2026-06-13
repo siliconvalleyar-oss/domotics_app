@@ -5,9 +5,6 @@ import '../app_theme.dart';
 import '../models/device.dart';
 import '../services/mqtt_service.dart';
 import '../widgets/device_card.dart';
-import '../widgets/bitcoin_ring.dart';
-import '../widgets/scene_card.dart';
-import '../models/scene.dart';
 import 'device_detail_screen.dart';
 import 'broker_config_screen.dart';
 
@@ -40,9 +37,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
     widget.mqttService.connectionStream.listen((connected) {
       if (mounted) {
         setState(() => _isConnected = connected);
-        if (connected) {
-          _subscribeToTopics();
-        }
+        if (connected) _subscribeToTopics();
       }
     });
 
@@ -50,7 +45,6 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
       _handleMqttMessage(message);
     });
 
-    // Auto-conectar al iniciar
     WidgetsBinding.instance.addPostFrameCallback((_) => _connectToBroker());
   }
 
@@ -90,9 +84,6 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
     return _devices.where((d) => d.room == _selectedRoom).toList();
   }
 
-  int get _activeDevicesCount => _devices.where((d) => d.isOn).length;
-  int get _totalDevices => _devices.length;
-
   @override
   void dispose() {
     _fabAnimationController.dispose();
@@ -108,17 +99,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
-            // Stats cards
-            SliverToBoxAdapter(child: _buildStatsRow()),
-            // Bitcoin price rings
-            const SliverToBoxAdapter(child: BitcoinRingSection()),
-            // Scenes
-            SliverToBoxAdapter(child: _buildScenesRow()),
-            // RGB Effects
-            SliverToBoxAdapter(child: _buildRgbEffects()),
-            // Room filter chips
             SliverToBoxAdapter(child: _buildRoomFilter()),
-            // Device grid
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
               sliver: _buildDeviceGrid(),
@@ -131,14 +112,12 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
   }
 
   PreferredSizeWidget _buildAppBar() {
+    final activeCount = _devices.where((d) => d.isOn).length;
+
     return AppBar(
       title: Row(
         children: [
-          Image.asset(
-            'assets/linux.png',
-            width: 32,
-            height: 32,
-          ),
+          Image.asset('assets/linux.png', width: 32, height: 32),
           const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -153,12 +132,14 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                 ),
               ),
               Text(
-                _isConnected ? 'Conectado al broker' : 'Desconectado',
+                _isConnected
+                    ? '$activeCount dispositivos activos'
+                    : 'Desconectado',
                 style: TextStyle(
                   fontFamily: AppTheme.fontName,
                   fontWeight: FontWeight.w400,
                   fontSize: 12,
-                  color: _isConnected ? AppTheme.success : AppTheme.error,
+                  color: _isConnected ? AppTheme.lightText : AppTheme.error,
                 ),
               ),
             ],
@@ -166,7 +147,6 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
         ],
       ),
       actions: [
-        // Settings button
         IconButton(
           icon: FaIcon(
             FontAwesomeIcons.gear,
@@ -176,7 +156,6 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
           onPressed: _openBrokerConfig,
           tooltip: 'Configurar broker',
         ),
-        // Connection indicator
         Padding(
           padding: const EdgeInsets.only(right: 16),
           child: AnimatedContainer(
@@ -200,247 +179,10 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
     );
   }
 
-  Widget _buildStatsRow() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: Row(
-        children: [
-          _buildStatCard(
-            icon: FontAwesomeIcons.solidLightbulb,
-            label: 'Activos',
-            value: '$_activeDevicesCount',
-            color: AppTheme.success,
-          ),
-          const SizedBox(width: 12),
-          _buildStatCard(
-            icon: FontAwesomeIcons.plug,
-            label: 'Total',
-            value: '$_totalDevices',
-            color: AppTheme.primaryAccent,
-          ),
-          const SizedBox(width: 12),
-          _buildStatCard(
-            icon: FontAwesomeIcons.wifi,
-            label: 'Broker',
-            value: _isConnected ? 'OK' : '--',
-            color: _isConnected ? AppTheme.success : AppTheme.error,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatCard({
-    required FaIconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return Expanded(
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppTheme.cardBackground,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: AppTheme.cardShadow,
-        ),
-        child: Column(
-          children: [
-            FaIcon(icon, color: color, size: 20),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: TextStyle(
-                fontFamily: AppTheme.fontName,
-                fontWeight: FontWeight.w700,
-                fontSize: 20,
-                color: color,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: const TextStyle(
-                fontFamily: AppTheme.fontName,
-                fontWeight: FontWeight.w400,
-                fontSize: 11,
-                color: AppTheme.lightText,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildScenesRow() {
-    final scenes = Scene.defaults;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(left: 4, bottom: 10),
-            child: Text(
-              'Escenas',
-              style: TextStyle(
-                fontFamily: AppTheme.fontName,
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
-                color: AppTheme.darkText,
-              ),
-            ),
-          ),
-          SizedBox(
-            height: 110,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              itemCount: scenes.length,
-              itemBuilder: (_, i) => SceneCard(
-                scene: scenes[i],
-                mqttService: widget.mqttService,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRgbEffects() {
-    const effects = [
-      {'label': 'Sólido',  'icon': Icons.circle,           'effect': ''},
-      {'label': 'Arcoíris','icon': Icons.gradient,         'effect': 'rainbow'},
-      {'label': 'Respirar','icon': Icons.air,              'effect': 'breathing'},
-      {'label': 'Fuego',   'icon': Icons.local_fire_department, 'effect': 'fire'},
-      {'label': 'Pulso',   'icon': Icons.favorite,         'effect': 'pulse'},
-      {'label': 'Strobe',  'icon': Icons.flash_on,         'effect': 'strobe'},
-    ];
-
-    const colors = [
-      Color(0xFF4EF2FF),
-      Color(0xFFFFC14D),
-      Color(0xFFFF5EA8),
-      Color(0xFF64FFC8),
-      Color(0xFFB05CFF),
-      Color(0xFFF9CA24),
-      Color(0xFFFF6B6B),
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(left: 4, bottom: 8),
-            child: Text(
-              'Efectos RGB',
-              style: TextStyle(
-                fontFamily: AppTheme.fontName,
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
-                color: AppTheme.darkText,
-              ),
-            ),
-          ),
-          SizedBox(
-            height: 36,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              itemCount: effects.length,
-              itemBuilder: (_, i) {
-                final e = effects[i];
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: GestureDetector(
-                    onTap: () {
-                      final effect = e['effect'] as String;
-                      if (effect.isEmpty) {
-                        // Solid color picker would go here; default white
-                        widget.mqttService.publishRaw(
-                          'domotics/rgb', '{"r":255,"g":255,"b":255}');
-                      } else {
-                        widget.mqttService.publishRaw(
-                          'domotics/rgb', '{"effect":"$effect"}');
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: AppTheme.cardBackground,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: AppTheme.deactivatedText.withValues(alpha: 0.2),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(e['icon'] as IconData, size: 14, color: AppTheme.primaryAccent),
-                          const SizedBox(width: 6),
-                          Text(
-                            e['label'] as String,
-                            style: const TextStyle(
-                              fontFamily: AppTheme.fontName,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: AppTheme.darkText,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 32,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              itemCount: colors.length,
-              itemBuilder: (_, i) => GestureDetector(
-                onTap: () {
-                  final c = colors[i];
-                  widget.mqttService.publishRaw(
-                    'domotics/rgb',
-                    '{"r":${c.red},"g":${c.green},"b":${c.blue}}',
-                  );
-                },
-                child: Container(
-                  width: 32,
-                  height: 32,
-                  margin: const EdgeInsets.only(right: 8),
-                  decoration: BoxDecoration(
-                    color: colors[i],
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: colors[i].withValues(alpha: 0.4),
-                        blurRadius: 6,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildRoomFilter() {
     return Container(
       height: 48,
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
@@ -456,9 +198,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                 duration: const Duration(milliseconds: 250),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: isSelected
-                      ? AppTheme.primaryAccent
-                      : AppTheme.cardBackground,
+                  color: isSelected ? AppTheme.primaryAccent : AppTheme.cardBackground,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: isSelected
@@ -517,13 +257,11 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
         childAspectRatio: 0.85,
       ),
       delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          return DeviceCard(
-            device: devices[index],
-            onTap: () => _openDeviceDetail(devices[index]),
-            onToggle: () => _toggleDevice(devices[index]),
-          );
-        },
+        (context, index) => DeviceCard(
+          device: devices[index],
+          onTap: () => _openDeviceDetail(devices[index]),
+          onToggle: () => _toggleDevice(devices[index]),
+        ),
         childCount: devices.length,
       ),
     );
@@ -539,9 +277,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
         onPressed: _isConnected ? null : _connectToBroker,
         backgroundColor: _isConnected ? AppTheme.success : AppTheme.primaryAccent,
         elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         icon: FaIcon(
           _isConnected ? FontAwesomeIcons.check : FontAwesomeIcons.wifi,
           color: Colors.white,
@@ -566,11 +302,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
       setState(() => _isConnected = connected);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            connected
-                ? 'Conectado al broker Mosquitto'
-                : 'Error al conectar con el broker',
-          ),
+          content: Text(connected ? 'Conectado al broker Mosquitto' : 'Error al conectar con el broker'),
           backgroundColor: connected ? AppTheme.success : AppTheme.error,
         ),
       );
@@ -582,10 +314,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
       context,
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
-            DeviceDetailScreen(
-          device: device,
-          mqttService: widget.mqttService,
-        ),
+            DeviceDetailScreen(device: device, mqttService: widget.mqttService),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeThroughTransition(
             animation: animation,
@@ -619,15 +348,11 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
     Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (context) => BrokerConfigScreen(
-          mqttService: widget.mqttService,
-        ),
+        builder: (context) => BrokerConfigScreen(mqttService: widget.mqttService),
       ),
     ).then((changed) {
       if (mounted && changed == true) {
-        setState(() {
-          _isConnected = widget.mqttService.isConnected;
-        });
+        setState(() => _isConnected = widget.mqttService.isConnected);
       }
     });
   }

@@ -6,6 +6,9 @@ import 'models/broker_config.dart';
 import 'services/mqtt_service.dart';
 import 'services/config_persistence.dart';
 import 'screens/dashboard_screen.dart';
+import 'screens/scenes_screen.dart';
+import 'screens/crypto_screen.dart';
+import 'screens/energy_screen.dart';
 import 'screens/monitor_screen.dart';
 
 void main() async {
@@ -71,6 +74,9 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     final screens = [
       DashboardScreen(mqttService: widget.mqttService),
+      ScenesScreen(mqttService: widget.mqttService),
+      EnergyScreen(mqttService: widget.mqttService),
+      const CryptoScreen(),
       MonitorScreen(mqttService: widget.mqttService),
     ];
 
@@ -90,13 +96,28 @@ class _MainShellState extends State<MainShell> {
           selectedItemColor: AppTheme.primaryAccent,
           unselectedItemColor: AppTheme.deactivatedText,
           type: BottomNavigationBarType.fixed,
-          selectedFontSize: 12,
-          unselectedFontSize: 12,
+          selectedFontSize: 11,
+          unselectedFontSize: 11,
           items: const [
             BottomNavigationBarItem(
               icon: Icon(Icons.home_outlined),
               activeIcon: Icon(Icons.home),
               label: 'Dashboard',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.auto_awesome_outlined),
+              activeIcon: Icon(Icons.auto_awesome),
+              label: 'Escenas',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.bolt_outlined),
+              activeIcon: Icon(Icons.bolt),
+              label: 'Energía',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.currency_bitcoin_outlined),
+              activeIcon: Icon(Icons.currency_bitcoin),
+              label: 'Crypto',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.monitor_heart_outlined),
