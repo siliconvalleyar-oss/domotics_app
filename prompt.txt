@@ -1,0 +1,75 @@
+╔══════════════════════════════════════════════════════════════╗
+║          DOMÓTICA APP — MONITOREO MQTT                      ║
+╚══════════════════════════════════════════════════════════════╝
+
+Broker: test.mosquitto.org:1883
+
+══════════════════════════════════════════════════════════════
+1. MONITOREAR TODO (ver todo lo que publica la app)
+══════════════════════════════════════════════════════════════
+
+mosquitto_sub -h test.mosquitto.org -t "domotics/#" -v
+
+Desde Raspberry Pi vía SSH:
+ssh joy@raspberry.local "mosquitto_sub -h test.mosquitto.org -t 'domotics/#' -v"
+
+══════════════════════════════════════════════════════════════
+2. ENVIAR COMANDOS (la app reacciona al instante)
+══════════════════════════════════════════════════════════════
+
+# Encender luz al 80%
+mosquitto_pub -h test.mosquitto.org -t "domotics/light/status" -m '{"isOn": true, "value": 80}'
+
+# Apagar luz
+mosquitto_pub -h test.mosquitto.org -t "domotics/light/status" -m '{"isOn": false, "value": 0}'
+
+# Fijar temperatura
+mosquitto_pub -h test.mosquitto.org -t "domotics/temperature/status" -m '{"isOn": true, "value": 24.5}'
+
+# Encender ventilador
+mosquitto_pub -h test.mosquitto.org -t "domotics/fan/status" -m '{"isOn": true, "value": 3}'
+
+# Cerrar cerradura
+mosquitto_pub -h test.mosquitto.org -t "domotics/lock/status" -m '{"isOn": false, "value": 0}'
+
+# Abrir cortina al 50%
+mosquitto_pub -h test.mosquitto.org -t "domotics/curtain/status" -m '{"isOn": true, "value": 50}'
+
+# Actualizar consumo energía
+mosquitto_pub -h test.mosquitto.org -t "domotics/energy/status" -m '{"isOn": true, "value": 450}'
+
+══════════════════════════════════════════════════════════════
+3. DESDE OTRA PC VÍA SSH
+══════════════════════════════════════════════════════════════
+
+# Monitorear
+ssh joy@raspberry.local "mosquitto_sub -h test.mosquitto.org -t 'domotics/#' -v"
+
+# Enviar comando (escapar comillas dobles con \")
+ssh joy@raspberry.local "mosquitto_pub -h test.mosquitto.org -t 'domotics/temperature/status' -m '{\"isOn\": true, \"value\": 22.5}'"
+
+══════════════════════════════════════════════════════════════
+4. VERIFICAR QUE LA APP RESPONDE
+══════════════════════════════════════════════════════════════
+
+1. Abrí la app en el móvil
+2. Confirmá que muestra "Conectado al broker" (badge verde)
+3. Desde la PC ejecutá:
+   mosquitto_sub -h test.mosquitto.org -t "domotics/#" -v
+4. Tocá un toggle en la app → deberías ver el mensaje en la PC
+5. Desde la PC ejecutá:
+   mosquitto_pub -h test.mosquitto.org -t "domotics/light/status" -m '{"isOn": false, "value": 0}'
+6. La app debería apagar la luz al instante
+
+══════════════════════════════════════════════════════════════
+TÓPICOS DISPONIBLES
+══════════════════════════════════════════════════════════════
+
+domotics/light/status        # Luz (0-100%)
+domotics/temperature/status  # Temperatura (16-30°C)
+domotics/fan/status          # Ventilador (0-5)
+domotics/lock/status         # Cerradura (on/off)
+domotics/curtain/status      # Cortina (0-100%)
+domotics/energy/status       # Energía (0-1000W)
+
+Formato: {"isOn": true/false, "value": número}
