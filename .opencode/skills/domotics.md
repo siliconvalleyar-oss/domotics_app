@@ -1,7 +1,11 @@
 # Domótica App — Flutter MQTT Home Automation
 
 ## Descripción
-App Flutter para controlar dispositivos domóticos (luces, temperatura, ventiladores, cerraduras, cortinas, energía) vía MQTT. Interfaz en español con toggles animados, sliders, escáner de brokers y persistencia de configuración.
+App Flutter para controlar dispositivos domóticos (luces, temperatura, ventiladores, cerraduras, cortinas, energía) vía MQTT. Interfaz minimalista en español con 5 tabs en bottom navigation.
+
+## Ramas
+- `main` — versión estable original
+- `feat/redesign-minimalist` — rediseño con bottom nav, energy monitor, add device, crypto fix
 
 ## Comandos Rápidos
 ```bash
@@ -27,48 +31,66 @@ flutter pub add mqtt_client font_awesome_flutter animations shared_preferences a
 ## Arquitectura
 ```
 lib/
-├── main.dart                   # Entry point, carga config guardada, inyecta MqttService
+├── main.dart                   # Entry point, 5 tabs bottom nav
 ├── app_theme.dart              # Tema claro con WorkSans + Roboto
 ├── models/
-│   ├── device.dart             # Device + DeviceType (6 tipos con icono, color, tópico MQTT)
-│   └── broker_config.dart      # BrokerConfig (host, port, username, password)
+│   ├── device.dart             # Device + DeviceType (city, customTopic)
+│   ├── broker_config.dart      # BrokerConfig (host, port, username, password)
+│   ├── scene.dart              # Scene con múltiples acciones MQTT
+│   ├── bitcoin_data.dart       # CryptoPrice model
+│   ├── mqtt_log_entry.dart     # Log entry para monitor
+│   └── energy_data.dart        # EnergyData con estimación kWh
 ├── screens/
-│   ├── dashboard_screen.dart   # Grid de tarjetas, filtro por habitación, FAB conectar
-│   ├── device_detail_screen.dart # Toggle + slider + botones rápido (Min/Mid/Max)
-│   └── broker_config_screen.dart # Formulario broker + escáner de red
+│   ├── dashboard_screen.dart   # Solo grid + filtro habitación + FAB conectar/add
+│   ├── add_device_screen.dart  # Formulario: tipo, nombre, habitación, ciudad, topic, max
+│   ├── scenes_screen.dart      # Grid 2×2 de escenas
+│   ├── energy_screen.dart      # Monitor de energía (barras animadas)
+│   ├── crypto_screen.dart      # Anillos crypto (animación sin reset a 0)
+│   ├── device_detail_screen.dart
+│   ├── broker_config_screen.dart
+│   └── monitor_screen.dart     # Log MQTT en tiempo real
 ├── services/
-│   ├── mqtt_service.dart       # MqttServerClient wrapper (streams connection + messages)
-│   ├── config_persistence.dart # SharedPreferences load/save
-│   └── broker_scanner.dart     # Socket scan /24 (lotes 50 conexiones, timeout 800ms)
+│   ├── mqtt_service.dart       # MqttServerClient wrapper (streams)
+│   ├── config_persistence.dart # SharedPreferences: broker + devices
+│   └── broker_scanner.dart     # Socket scan /24
 └── widgets/
-    ├── device_card.dart        # Tarjeta con icono, toggle, badge de estado
-    ├── animated_toggle.dart    # Toggle pill animado personalizado
-    └── animated_slider.dart    # Slider con track gradientado y badge
+    ├── device_card.dart
+    ├── animated_toggle.dart
+    ├── animated_slider.dart
+    ├── scene_card.dart
+    ├── bitcoin_ring.dart
+    └── energy_monitor_widget.dart  # Barras animadas estilo Storage Monitor
 ```
 
-## MQTT
-- Broker default: `test.mosquitto.org:1883`
-- Tópico comando: `domotics/{type}` → `{"command":"on"/"off", "deviceId":"<id>"}` o `{"deviceId":"<id>", "value":<num>}`
-- Tópico estado: `domotics/{type}/status` → `{"isOn":bool, "value":num}`
-- Tipos: light, temperature, fan, lock, energy, curtain
-- Sin estado global (setState + MqttService inyectado manualmente)
-- `dart:io` en broker_scanner → no compila para web
+## Bottom Navigation (5 tabs)
+| Tab | Contenido |
+|-----|-----------|
+| Dashboard | Grid dispositivos + filtro habitación |
+| Escenas | Escenas inteligentes en grid 2×2 |
+| Energía | Consumo estimado por dispositivo (kWh) |
+| Crypto | Precios BTC/ETH/XRP en anillos animados |
+| Monitor | Log MQTT en tiempo real |
 
-## Cómo Agregar un Dispositivo
-1. Agregar enum a `DeviceType` en `models/device.dart`
-2. Implementar extension: label, icon, color, mqttTopic
-3. Agregar sample a `Device.sampleDevices`
-4. Dashboard y detail screen funcionan automáticamente (genéricos por tipo)
+## Agregar Dispositivo
+- Botón **"+"** (FAB) en Dashboard → `AddDeviceScreen`
+- Campos: tipo, nombre, habitación, ciudad (temp), topic personalizado, valor máximo
+- Se persiste en SharedPreferences
+
+## MQTT
+- Broker default: `raspberry.local:1883`
+- Tópico comando: `{topic}` → `{"command":"on"/"off", "deviceId":"<id>"}` o `{"deviceId":"<id>", "value":<num>}`
+- Tópico estado: `{topic}/status` → `{"isOn":bool, "value":num}`
+- Tipos: light, temperature, fan, lock, energy, curtain
+- Topic personalizable por dispositivo
 
 ## Assets
-- `assets/fonts/WorkSans-*.ttf`
-- `assets/fonts/Roboto-*.ttf`
-- `assets/logo.png` (icono app + launcher Android)
-- Generar launcher icons desde `assets/logo.png`:
+- `assets/fonts/WorkSans-*.ttf`, `Roboto-*.ttf`
+- `assets/linux.png` — icono app + launcher Android
+- Generar launcher icons:
   ```bash
   python3 -c "
   from PIL import Image
-  logo = Image.open('assets/logo.png').convert('RGBA')
+  logo = Image.open('assets/linux.png').convert('RGBA')
   sizes = {'mdpi':48,'hdpi':72,'xhdpi':96,'xxhdpi':144,'xxxhdpi':192}
   for d,s in sizes.items():
       r=logo.resize((s,s),Image.LANCZOS)
@@ -79,12 +101,12 @@ lib/
   ```
 
 ## Dispositivo Físico (Xiaomi)
-- Conectar vía WiFi ADB: `adb connect 192.168.1.34:33515`
+- `adb connect 192.168.1.34:33515`
 - Si falla `INSTALL_FAILED_USER_RESTRICTED`:
-  - Activar "Instalar vía USB" y "Depuración USB (Configuración de seguridad)" en Opciones de desarrollador
-  - Desbloquear pantalla y aceptar el prompt de instalación
+  - Activar "Instalar vía USB" y "Depuración USB (Configuración de seguridad)"
+  - Desbloquear pantalla y aceptar prompt
 
 ## Sincronización Raspberry Pi
-- La app se conecta al broker MQTT (Mosquitto) en la Raspberry
-- Los comandos se envían a `domotics/{type}` y la Raspberry publica estados en `domotics/{type}/status`
-- Escáner de red descubre brokers automáticamente en la subred /24
+- Broker Mosquitto en Raspberry Pi
+- Comandos → `{topic}`, estado ← `{topic}/status`
+- Escáner de red descubre brokers automáticamente
