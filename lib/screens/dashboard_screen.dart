@@ -63,9 +63,17 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
 
   void _handleMqttMessage(Map<String, dynamic> message) {
     final topic = message['topic'] as String? ?? '';
+    final msgDeviceId = message['deviceId'] as String?;
     debugPrint('MQTT message received on $topic: $message');
+
     for (final device in _devices) {
-      if (topic.startsWith(device.type.mqttTopic)) {
+      bool matches;
+      if (msgDeviceId != null) {
+        matches = device.id == msgDeviceId;
+      } else {
+        matches = topic.startsWith(device.type.mqttTopic);
+      }
+      if (matches) {
         setState(() {
           device.isConnected = true;
           if (message.containsKey('isOn')) device.isOn = message['isOn'] as bool;
@@ -595,7 +603,6 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
 
   void _toggleDevice(Device device) {
     setState(() {
-      device.isOn = !device.isOn;
       if (device.isOn && device.hasSlider && device.value == 0) {
         device.value = device.maxValue * 0.5;
       }

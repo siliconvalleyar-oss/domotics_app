@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 import '../models/broker_config.dart';
@@ -37,8 +38,13 @@ class MqttService {
     if (_isConnected) return true;
 
     try {
-      _client = MqttServerClient(_config.host, _config.clientId);
-      _client!.port = _config.port;
+      if (kIsWeb) {
+        final wsUrl = 'ws://${_config.host}:${_config.webSocketPort}/mqtt';
+        _client = MqttServerClient(wsUrl, _config.clientId);
+      } else {
+        _client = MqttServerClient(_config.host, _config.clientId);
+        _client!.port = _config.port;
+      }
       _client!.keepAlivePeriod = 30;
       _client!.connectTimeoutPeriod = 5000;
       _client!.logging(on: false);
