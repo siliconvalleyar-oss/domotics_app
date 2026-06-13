@@ -18,7 +18,7 @@ void main() async {
 
   final savedConfig = await ConfigPersistence.loadConfig();
   final config = savedConfig ?? BrokerConfig(
-    host: 'test.mosquitto.org',
+    host: 'raspberry.local',
     port: 1883,
   );
 

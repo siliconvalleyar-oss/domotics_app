@@ -6,7 +6,7 @@ class BrokerConfig {
   String clientId;
 
   BrokerConfig({
-    this.host = 'test.mosquitto.org',
+    this.host = 'raspberry.local',
     this.port = 1883,
     this.username = '',
     this.password = '',
@@ -29,7 +29,7 @@ class BrokerConfig {
       };
 
   factory BrokerConfig.fromJson(Map<String, dynamic> json) => BrokerConfig(
-        host: json['host'] as String? ?? 'test.mosquitto.org',
+        host: json['host'] as String? ?? 'raspberry.local',
         port: json['port'] as int? ?? 1883,
         username: json['username'] as String? ?? '',
         password: json['password'] as String? ?? '',
