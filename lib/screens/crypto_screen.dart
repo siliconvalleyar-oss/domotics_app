@@ -1,7 +1,8 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../app_theme.dart';
-import '../models/bitcoin_data.dart';
+import '../services/crypto_service.dart';
 
 class CryptoScreen extends StatefulWidget {
   const CryptoScreen({super.key});
@@ -11,42 +12,53 @@ class CryptoScreen extends StatefulWidget {
 }
 
 class _CryptoScreenState extends State<CryptoScreen> {
-  late List<CryptoPrice> _prices;
+  List<CryptoPriceData> _prices = [];
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    _prices = CryptoPrice.generate();
-    _startTimer();
+    _fetch();
   }
 
-  void _startTimer() {
-    Future.delayed(const Duration(seconds: 4), () {
-      if (mounted) {
-        setState(() => _prices = CryptoPrice.generate());
-        _startTimer();
-      }
+  Future<void> _fetch() async {
+    setState(() => _loading = true);
+    final data = await CryptoService.fetchAll();
+    if (mounted) {
+      setState(() { _prices = data; _loading = false; });
+    }
+    _scheduleNext();
+  }
+
+  void _scheduleNext() {
+    Future.delayed(const Duration(seconds: 30), () {
+      if (mounted) _fetch();
     });
   }
 
-  double _ringValue(CryptoPrice coin) {
-    const refs = {'Bitcoin': 150000.0, 'Ethereum': 5000.0, 'XRP': 3.0};
-    final max = refs[coin.label] ?? 100.0;
+  double _ringValue(CryptoPriceData coin, double max) {
     return (coin.value / max * 100).clamp(0, 100);
   }
 
   @override
   Widget build(BuildContext context) {
-    final gradients = [
+    final cryptoGradients = [
       [const Color(0xFF4EF2FF), const Color(0xFFB05CFF)],
       [const Color(0xFFFFC14D), const Color(0xFFFF5EA8)],
       [const Color(0xFF64FFC8), const Color(0xFF5DAEFF)],
     ];
+    final dolarGradients = [
+      [const Color(0xFF00B894), const Color(0xFF00CEC9)],
+      [const Color(0xFF6C5CE7), const Color(0xFFA29BFE)],
+    ];
+
+    final cryptos = _prices.where((p) => p.subtitle != 'AR\$').toList();
+    final dolares = _prices.where((p) => p.subtitle == 'AR\$').toList();
 
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Precio Crypto',
+          'Crypto & Dólar',
           style: TextStyle(
             fontFamily: AppTheme.fontName,
             fontWeight: FontWeight.w700,
@@ -54,55 +66,97 @@ class _CryptoScreenState extends State<CryptoScreen> {
             color: AppTheme.darkText,
           ),
         ),
+        actions: [
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.refresh, size: 20),
+              onPressed: _fetch,
+              tooltip: 'Actualizar',
+            ),
+        ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
+      body: RefreshIndicator(
+        onRefresh: _fetch,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_loading && _prices.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(40),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else ...[
+                _buildSection(context, 'Mercado Crypto', cryptos, cryptoGradients, 150000, 'USD'),
+                const SizedBox(height: 16),
+                _buildSection(context, 'Dólar Argentina', dolares, dolarGradients, 2000, 'AR\$'),
+                const SizedBox(height: 20),
+                Center(
+                  child: Text(
+                    'Fuente: CoinGecko + BlueLytics',
+                    style: TextStyle(fontSize: 11, color: AppTheme.deactivatedText),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Center(
+                  child: Text(
+                    'Actualizado cada 30 segundos',
+                    style: TextStyle(fontSize: 10, color: AppTheme.deactivatedText),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSection(BuildContext context, String title, List<CryptoPriceData> items, List<List<Color>> gradients, double maxRef, String currency) {
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Mercado Crypto',
-                      style: TextStyle(
-                        fontFamily: AppTheme.fontName,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                        color: AppTheme.darkText,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Row(
-                      children: List.generate(_prices.length, (i) {
-                        return Expanded(
-                          child: Padding(
-                            padding: EdgeInsets.only(right: i < _prices.length - 1 ? 12 : 0),
-                            child: _AnimatedRing(
-                              coin: _prices[i],
-                              ringValue: _ringValue(_prices[i]),
-                              gradientColors: gradients[i],
-                            ),
-                          ),
-                        );
-                      }),
-                    ),
-                    const SizedBox(height: 20),
-                    Center(
-                      child: Text(
-                        'Actualizado cada 4 segundos',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppTheme.deactivatedText,
-                        ),
-                      ),
-                    ),
-                  ],
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontFamily: AppTheme.fontName,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    color: AppTheme.darkText,
+                  ),
                 ),
-              ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: List.generate(items.length, (i) {
+                return Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(right: i < items.length - 1 ? 12 : 0),
+                    child: _AnimatedRing(
+                      coin: items[i],
+                      ringValue: _ringValue(items[i], maxRef),
+                      gradientColors: gradients[i],
+                      currency: currency,
+                    ),
+                  ),
+                );
+              }),
             ),
           ],
         ),
@@ -112,14 +166,16 @@ class _CryptoScreenState extends State<CryptoScreen> {
 }
 
 class _AnimatedRing extends StatefulWidget {
-  final CryptoPrice coin;
+  final CryptoPriceData coin;
   final double ringValue;
   final List<Color> gradientColors;
+  final String currency;
 
   const _AnimatedRing({
     required this.coin,
     required this.ringValue,
     required this.gradientColors,
+    required this.currency,
   });
 
   @override
@@ -129,7 +185,6 @@ class _AnimatedRing extends StatefulWidget {
 class _AnimatedRingState extends State<_AnimatedRing>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _animation;
   double _previousValue = 0;
 
   @override
@@ -139,10 +194,6 @@ class _AnimatedRingState extends State<_AnimatedRing>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
-    );
-    _animation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOutCubic,
     );
   }
 
@@ -163,16 +214,20 @@ class _AnimatedRingState extends State<_AnimatedRing>
 
   @override
   Widget build(BuildContext context) {
+    final displayPrice = widget.currency == 'AR\$'
+        ? '\$${widget.coin.value.toStringAsFixed(0)}'
+        : widget.coin.formattedPrice;
+
     return Column(
       children: [
         SizedBox(
           width: 80,
           height: 80,
           child: AnimatedBuilder(
-            animation: _animation,
+            animation: _controller,
             builder: (context, child) {
-              final value = _previousValue +
-                  (widget.ringValue - _previousValue) * _animation.value;
+              final animValue = _controller.isAnimating ? _controller.value : 1.0;
+              final value = _previousValue + (widget.ringValue - _previousValue) * animValue;
               return CustomPaint(
                 painter: _RingPainter(
                   progress: value / 100,
@@ -184,41 +239,38 @@ class _AnimatedRingState extends State<_AnimatedRing>
         ),
         const SizedBox(height: 10),
         Text(
-          widget.coin.formattedPrice,
+          displayPrice,
           style: TextStyle(
-            fontSize: 16,
+            fontSize: 15,
             fontWeight: FontWeight.w700,
             color: widget.gradientColors.first,
           ),
         ),
-        const SizedBox(height: 4),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              widget.coin.isPositive
-                  ? Icons.arrow_upward_rounded
-                  : Icons.arrow_downward_rounded,
-              size: 12,
-              color: widget.coin.isPositive ? AppTheme.success : AppTheme.error,
-            ),
-            const SizedBox(width: 2),
-            Text(
-              '${widget.coin.change.toStringAsFixed(1)}%',
-              style: TextStyle(
-                fontSize: 12,
+        if (widget.coin.change24h != 0) ...[
+          const SizedBox(height: 4),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                widget.coin.isPositive ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                size: 12,
                 color: widget.coin.isPositive ? AppTheme.success : AppTheme.error,
               ),
-            ),
-          ],
-        ),
+              const SizedBox(width: 2),
+              Text(
+                '${widget.coin.change24h.toStringAsFixed(1)}%',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: widget.coin.isPositive ? AppTheme.success : AppTheme.error,
+                ),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 4),
         Text(
           widget.coin.label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: AppTheme.lightText,
-          ),
+          style: const TextStyle(fontSize: 11, color: AppTheme.lightText),
         ),
       ],
     );
@@ -259,13 +311,7 @@ class _RingPainter extends CustomPainter {
         ..strokeWidth = strokeWidth
         ..strokeCap = StrokeCap.round;
 
-      canvas.drawArc(
-        rect,
-        -math.pi / 2,
-        2 * math.pi * progress,
-        false,
-        paint,
-      );
+      canvas.drawArc(rect, -math.pi / 2, 2 * math.pi * progress, false, paint);
 
       final endAngle = -math.pi / 2 + 2 * math.pi * progress;
       final dotX = center.dx + radius * math.cos(endAngle);
