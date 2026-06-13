@@ -7,6 +7,7 @@ import 'models/broker_config.dart';
 import 'services/mqtt_service.dart';
 import 'services/config_persistence.dart';
 import 'screens/dashboard_screen.dart';
+import 'screens/monitor_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,7 +16,6 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  // Cargar configuración guardada
   final savedConfig = await ConfigPersistence.loadConfig();
   final config = savedConfig ?? BrokerConfig(
     host: 'test.mosquitto.org',
@@ -51,7 +51,62 @@ class DomoticsApp extends StatelessWidget {
       title: 'Domótica App',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.buildLightTheme(),
-      home: DashboardScreen(mqttService: mqttService),
+      home: MainShell(mqttService: mqttService),
+    );
+  }
+}
+
+class MainShell extends StatefulWidget {
+  final MqttService mqttService;
+
+  const MainShell({super.key, required this.mqttService});
+
+  @override
+  State<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends State<MainShell> {
+  int _currentIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final screens = [
+      DashboardScreen(mqttService: widget.mqttService),
+      MonitorScreen(mqttService: widget.mqttService),
+    ];
+
+    return Scaffold(
+      body: IndexedStack(
+        index: _currentIndex,
+        children: screens,
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          boxShadow: AppTheme.cardShadow,
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: (i) => setState(() => _currentIndex = i),
+          backgroundColor: AppTheme.surface,
+          selectedItemColor: AppTheme.primaryAccent,
+          unselectedItemColor: AppTheme.deactivatedText,
+          type: BottomNavigationBarType.fixed,
+          selectedFontSize: 12,
+          unselectedFontSize: 12,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home),
+              label: 'Dashboard',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.monitor_heart_outlined),
+              activeIcon: Icon(Icons.monitor_heart),
+              label: 'Monitor',
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

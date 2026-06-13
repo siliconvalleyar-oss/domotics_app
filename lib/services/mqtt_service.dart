@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 import '../models/broker_config.dart';
+import '../models/mqtt_log_entry.dart';
 
 class MqttService {
   MqttServerClient? _client;
@@ -13,17 +14,18 @@ class MqttService {
       StreamController<bool>.broadcast();
   final StreamController<Map<String, dynamic>> _messageController =
       StreamController<Map<String, dynamic>>.broadcast();
+  final StreamController<MqttLogEntry> _logController =
+      StreamController<MqttLogEntry>.broadcast();
 
   Stream<bool> get connectionStream => _connectionController.stream;
   Stream<Map<String, dynamic>> get messageStream => _messageController.stream;
+  Stream<MqttLogEntry> get logStream => _logController.stream;
   bool get isConnected => _isConnected;
   BrokerConfig get config => _config;
 
   MqttService({BrokerConfig? config})
       : _config = config ?? BrokerConfig();
 
-  /// Actualiza la configuración del broker.
-  /// Si está conectado, se desconecta automáticamente.
   void updateConfig(BrokerConfig newConfig) {
     _config = newConfig;
     if (_isConnected) {
@@ -41,13 +43,11 @@ class MqttService {
       _client!.connectTimeoutPeriod = 5000;
       _client!.logging(on: false);
 
-      // Configurar callbacks
       _client!.onConnected = _onConnected;
       _client!.onDisconnected = _onDisconnected;
       _client!.onSubscribed = _onSubscribed;
       _client!.pongCallback = _pong;
 
-      // Conexión con autenticación opcional
       final connMessage = MqttConnectMessage().startClean().withWillQos(MqttQos.atLeastOnce);
       if (_config.username.isNotEmpty && _config.password.isNotEmpty) {
         connMessage.authenticateAs(_config.username, _config.password);
@@ -59,8 +59,6 @@ class MqttService {
       if (_client!.connectionStatus!.state == MqttConnectionState.connected) {
         _isConnected = true;
 
-        // Escuchar mensajes (antes de emitir connected para que las suscripciones
-        // se hagan después de tener el listener activo)
         _client!.updates?.listen(_onMessageReceived);
 
         _connectionController.add(true);
@@ -89,18 +87,28 @@ class MqttService {
   }
 
   void _onSubscribed(String topic) {
-    // Suscripción exitosa
+    _logController.add(MqttLogEntry(
+      timestamp: DateTime.now(),
+      topic: topic,
+      payload: 'SUSCRITO',
+      direction: MqttDirection.received,
+    ));
   }
 
-  void _pong() {
-    // Pong recibido
-  }
+  void _pong() {}
 
   void _onMessageReceived(List<MqttReceivedMessage<MqttMessage>> messages) {
     for (final message in messages) {
       final topic = message.topic;
       final payload = message.payload as MqttPublishMessage;
       final data = utf8.decode(payload.payload.message);
+
+      _logController.add(MqttLogEntry(
+        timestamp: DateTime.now(),
+        topic: topic,
+        payload: data,
+        direction: MqttDirection.received,
+      ));
 
       try {
         final json = jsonDecode(data) as Map<String, dynamic>;
@@ -129,11 +137,19 @@ class MqttService {
     final builder = MqttClientPayloadBuilder();
     builder.addString(payload);
 
+    _logController.add(MqttLogEntry(
+      timestamp: DateTime.now(),
+      topic: topic,
+      payload: payload,
+      direction: MqttDirection.published,
+    ));
+
     await _client!.publishMessage(topic, qos, builder.payload!);
   }
 
-  Future<void> publishCommand(String topic, String command) async {
-    await publish(topic, {'command': command});
+  /// Publica un comando on/off con deviceId
+  Future<void> publishCommand(String topic, String command, String deviceId) async {
+    await publish(topic, {'command': command, 'deviceId': deviceId});
   }
 
   Future<void> disconnect() async {
@@ -149,5 +165,6 @@ class MqttService {
     disconnect();
     _connectionController.close();
     _messageController.close();
+    _logController.close();
   }
 }
