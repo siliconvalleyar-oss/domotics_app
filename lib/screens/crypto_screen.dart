@@ -12,23 +12,18 @@ class CryptoScreen extends StatefulWidget {
 
 class _CryptoScreenState extends State<CryptoScreen> {
   late List<CryptoPrice> _prices;
-  late int _seed;
 
   @override
   void initState() {
     super.initState();
     _prices = CryptoPrice.generate();
-    _seed = DateTime.now().millisecondsSinceEpoch;
     _startTimer();
   }
 
   void _startTimer() {
     Future.delayed(const Duration(seconds: 4), () {
       if (mounted) {
-        setState(() {
-          _prices = CryptoPrice.generate();
-          _seed = DateTime.now().millisecondsSinceEpoch;
-        });
+        setState(() => _prices = CryptoPrice.generate());
         _startTimer();
       }
     });
@@ -86,7 +81,11 @@ class _CryptoScreenState extends State<CryptoScreen> {
                         return Expanded(
                           child: Padding(
                             padding: EdgeInsets.only(right: i < _prices.length - 1 ? 12 : 0),
-                            child: _buildRing(_prices[i], gradients[i]),
+                            child: _AnimatedRing(
+                              coin: _prices[i],
+                              ringValue: _ringValue(_prices[i]),
+                              gradientColors: gradients[i],
+                            ),
                           ),
                         );
                       }),
@@ -110,23 +109,74 @@ class _CryptoScreenState extends State<CryptoScreen> {
       ),
     );
   }
+}
 
-  Widget _buildRing(CryptoPrice coin, List<Color> gradientColors) {
+class _AnimatedRing extends StatefulWidget {
+  final CryptoPrice coin;
+  final double ringValue;
+  final List<Color> gradientColors;
+
+  const _AnimatedRing({
+    required this.coin,
+    required this.ringValue,
+    required this.gradientColors,
+  });
+
+  @override
+  State<_AnimatedRing> createState() => _AnimatedRingState();
+}
+
+class _AnimatedRingState extends State<_AnimatedRing>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+  double _previousValue = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _previousValue = widget.ringValue;
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  void didUpdateWidget(_AnimatedRing old) {
+    super.didUpdateWidget(old);
+    if (old.ringValue != widget.ringValue) {
+      _previousValue = old.ringValue;
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       children: [
         SizedBox(
           width: 80,
           height: 80,
-          child: TweenAnimationBuilder<double>(
-            key: ValueKey('${coin.label}_$_seed'),
-            tween: Tween(begin: 0, end: _ringValue(coin)),
-            duration: const Duration(milliseconds: 1500),
-            curve: Curves.easeOutCubic,
-            builder: (context, value, child) {
+          child: AnimatedBuilder(
+            animation: _animation,
+            builder: (context, child) {
+              final value = _previousValue +
+                  (widget.ringValue - _previousValue) * _animation.value;
               return CustomPaint(
                 painter: _RingPainter(
                   progress: value / 100,
-                  gradientColors: gradientColors,
+                  gradientColors: widget.gradientColors,
                 ),
               );
             },
@@ -134,11 +184,11 @@ class _CryptoScreenState extends State<CryptoScreen> {
         ),
         const SizedBox(height: 10),
         Text(
-          coin.formattedPrice,
+          widget.coin.formattedPrice,
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w700,
-            color: gradientColors.first,
+            color: widget.gradientColors.first,
           ),
         ),
         const SizedBox(height: 4),
@@ -146,23 +196,25 @@ class _CryptoScreenState extends State<CryptoScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              coin.isPositive ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+              widget.coin.isPositive
+                  ? Icons.arrow_upward_rounded
+                  : Icons.arrow_downward_rounded,
               size: 12,
-              color: coin.isPositive ? AppTheme.success : AppTheme.error,
+              color: widget.coin.isPositive ? AppTheme.success : AppTheme.error,
             ),
             const SizedBox(width: 2),
             Text(
-              '${coin.change.toStringAsFixed(1)}%',
+              '${widget.coin.change.toStringAsFixed(1)}%',
               style: TextStyle(
                 fontSize: 12,
-                color: coin.isPositive ? AppTheme.success : AppTheme.error,
+                color: widget.coin.isPositive ? AppTheme.success : AppTheme.error,
               ),
             ),
           ],
         ),
         const SizedBox(height: 4),
         Text(
-          coin.label,
+          widget.coin.label,
           style: const TextStyle(
             fontSize: 12,
             color: AppTheme.lightText,
