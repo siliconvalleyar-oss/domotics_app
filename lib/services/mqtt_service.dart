@@ -152,6 +152,24 @@ class MqttService {
     await publish(topic, {'command': command, 'deviceId': deviceId});
   }
 
+  /// Publica un payload en crudo (string plano)
+  Future<void> publishRaw(String topic, String rawPayload,
+      {MqttQos qos = MqttQos.atLeastOnce}) async {
+    if (!_isConnected || _client == null) return;
+
+    final builder = MqttClientPayloadBuilder();
+    builder.addString(rawPayload);
+
+    _logController.add(MqttLogEntry(
+      timestamp: DateTime.now(),
+      topic: topic,
+      payload: rawPayload,
+      direction: MqttDirection.published,
+    ));
+
+    await _client!.publishMessage(topic, qos, builder.payload!);
+  }
+
   Future<void> disconnect() async {
     _isConnected = false;
     _connectionController.add(false);

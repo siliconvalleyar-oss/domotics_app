@@ -7,6 +7,8 @@ import '../models/device.dart';
 import '../services/mqtt_service.dart';
 import '../widgets/device_card.dart';
 import '../widgets/bitcoin_ring.dart';
+import '../widgets/scene_card.dart';
+import '../models/scene.dart';
 import 'device_detail_screen.dart';
 import 'broker_config_screen.dart';
 
@@ -103,6 +105,10 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
             SliverToBoxAdapter(child: _buildStatsRow()),
             // Bitcoin price rings
             const SliverToBoxAdapter(child: BitcoinRingSection()),
+            // Scenes
+            SliverToBoxAdapter(child: _buildScenesRow()),
+            // RGB Effects
+            SliverToBoxAdapter(child: _buildRgbEffects()),
             // Room filter chips
             SliverToBoxAdapter(child: _buildRoomFilter()),
             // Device grid
@@ -257,6 +263,169 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildScenesRow() {
+    final scenes = Scene.defaults;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(left: 4, bottom: 10),
+            child: Text(
+              'Escenas',
+              style: TextStyle(
+                fontFamily: AppTheme.fontName,
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+                color: AppTheme.darkText,
+              ),
+            ),
+          ),
+          SizedBox(
+            height: 110,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              itemCount: scenes.length,
+              itemBuilder: (_, i) => SceneCard(
+                scene: scenes[i],
+                mqttService: widget.mqttService,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRgbEffects() {
+    const effects = [
+      {'label': 'Sólido',  'icon': Icons.circle,           'effect': ''},
+      {'label': 'Arcoíris','icon': Icons.gradient,         'effect': 'rainbow'},
+      {'label': 'Respirar','icon': Icons.air,              'effect': 'breathing'},
+      {'label': 'Fuego',   'icon': Icons.local_fire_department, 'effect': 'fire'},
+      {'label': 'Pulso',   'icon': Icons.favorite,         'effect': 'pulse'},
+      {'label': 'Strobe',  'icon': Icons.flash_on,         'effect': 'strobe'},
+    ];
+
+    const colors = [
+      Color(0xFF4EF2FF),
+      Color(0xFFFFC14D),
+      Color(0xFFFF5EA8),
+      Color(0xFF64FFC8),
+      Color(0xFFB05CFF),
+      Color(0xFFF9CA24),
+      Color(0xFFFF6B6B),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(left: 4, bottom: 8),
+            child: Text(
+              'Efectos RGB',
+              style: TextStyle(
+                fontFamily: AppTheme.fontName,
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+                color: AppTheme.darkText,
+              ),
+            ),
+          ),
+          SizedBox(
+            height: 36,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              itemCount: effects.length,
+              itemBuilder: (_, i) {
+                final e = effects[i];
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: GestureDetector(
+                    onTap: () {
+                      final effect = e['effect'] as String;
+                      if (effect.isEmpty) {
+                        // Solid color picker would go here; default white
+                        widget.mqttService.publishRaw(
+                          'domotics/rgb', '{"r":255,"g":255,"b":255}');
+                      } else {
+                        widget.mqttService.publishRaw(
+                          'domotics/rgb', '{"effect":"$effect"}');
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: AppTheme.cardBackground,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: AppTheme.deactivatedText.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(e['icon'] as IconData, size: 14, color: AppTheme.primaryAccent),
+                          const SizedBox(width: 6),
+                          Text(
+                            e['label'] as String,
+                            style: const TextStyle(
+                              fontFamily: AppTheme.fontName,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: AppTheme.darkText,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 32,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              itemCount: colors.length,
+              itemBuilder: (_, i) => GestureDetector(
+                onTap: () {
+                  final c = colors[i];
+                  widget.mqttService.publishRaw(
+                    'domotics/rgb',
+                    '{"r":${c.red},"g":${c.green},"b":${c.blue}}',
+                  );
+                },
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    color: colors[i],
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: colors[i].withValues(alpha: 0.4),
+                        blurRadius: 6,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
