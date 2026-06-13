@@ -4,9 +4,11 @@ import 'package:animations/animations.dart';
 import '../app_theme.dart';
 import '../models/device.dart';
 import '../services/mqtt_service.dart';
+import '../services/config_persistence.dart';
 import '../widgets/device_card.dart';
 import 'device_detail_screen.dart';
 import 'broker_config_screen.dart';
+import 'add_device_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final MqttService mqttService;
@@ -22,13 +24,16 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
   late AnimationController _fabAnimationController;
   bool _isConnected = false;
   String _selectedRoom = 'Todos';
+  bool _loaded = false;
 
   final List<String> _rooms = ['Todos', 'Sala', 'Dormitorio', 'Cocina', 'Entrada', 'Exterior', 'General'];
 
   @override
   void initState() {
     super.initState();
-    _devices = Device.sampleDevices;
+    _devices = List.from(Device.sampleDevices);
+    _loadDevices();
+
     _fabAnimationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
@@ -48,23 +53,34 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
     WidgetsBinding.instance.addPostFrameCallback((_) => _connectToBroker());
   }
 
+  Future<void> _loadDevices() async {
+    final saved = await ConfigPersistence.loadDevices();
+    if (saved.isNotEmpty && mounted) {
+      setState(() {
+        _devices = [...Device.sampleDevices, ...saved];
+        _loaded = true;
+      });
+    } else {
+      if (mounted) setState(() => _loaded = true);
+    }
+  }
+
   void _subscribeToTopics() {
     for (final device in _devices) {
-      widget.mqttService.subscribe('${device.type.mqttTopic}/status');
+      widget.mqttService.subscribe('${device.effectiveTopic}/status');
     }
   }
 
   void _handleMqttMessage(Map<String, dynamic> message) {
     final topic = message['topic'] as String? ?? '';
     final msgDeviceId = message['deviceId'] as String?;
-    debugPrint('MQTT message received on $topic: $message');
 
     for (final device in _devices) {
       bool matches;
       if (msgDeviceId != null) {
         matches = device.id == msgDeviceId;
       } else {
-        matches = topic.startsWith(device.type.mqttTopic);
+        matches = topic.startsWith(device.effectiveTopic);
       }
       if (matches) {
         setState(() {
@@ -94,20 +110,60 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: _buildAppBar(),
-      body: RefreshIndicator(
-        onRefresh: _refreshDevices,
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            SliverToBoxAdapter(child: _buildRoomFilter()),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
-              sliver: _buildDeviceGrid(),
+      body: _loaded
+          ? RefreshIndicator(
+              onRefresh: _refreshDevices,
+              child: CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(child: _buildRoomFilter()),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
+                    sliver: _buildDeviceGrid(),
+                  ),
+                ],
+              ),
+            )
+          : const Center(child: CircularProgressIndicator()),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'add_device',
+            onPressed: _openAddDevice,
+            backgroundColor: AppTheme.primaryAccent,
+            child: const Icon(Icons.add, color: Colors.white),
+          ),
+          const SizedBox(height: 8),
+          ScaleTransition(
+            scale: CurvedAnimation(
+              parent: _fabAnimationController,
+              curve: Curves.easeOutBack,
             ),
-          ],
-        ),
+            child: FloatingActionButton.extended(
+              heroTag: 'connect_broker',
+              onPressed: _isConnected ? null : _connectToBroker,
+              backgroundColor: _isConnected ? AppTheme.success : AppTheme.primaryAccent,
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              icon: FaIcon(
+                _isConnected ? FontAwesomeIcons.check : FontAwesomeIcons.wifi,
+                color: Colors.white,
+                size: 18,
+              ),
+              label: Text(
+                _isConnected ? 'Conectado' : 'Conectar',
+                style: const TextStyle(
+                  fontFamily: AppTheme.fontName,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
-      floatingActionButton: _buildFloatingButton(),
     );
   }
 
@@ -148,11 +204,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
       ),
       actions: [
         IconButton(
-          icon: FaIcon(
-            FontAwesomeIcons.gear,
-            size: 20,
-            color: AppTheme.darkText,
-          ),
+          icon: const FaIcon(FontAwesomeIcons.gear, size: 20, color: AppTheme.darkText),
           onPressed: _openBrokerConfig,
           tooltip: 'Configurar broker',
         ),
@@ -234,14 +286,17 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              FaIcon(FontAwesomeIcons.magnifyingGlass, size: 48, color: AppTheme.deactivatedText),
+              const FaIcon(FontAwesomeIcons.magnifyingGlass, size: 48, color: AppTheme.deactivatedText),
               const SizedBox(height: 16),
               const Text(
                 'No hay dispositivos en esta habitación',
-                style: TextStyle(
-                  fontFamily: AppTheme.fontName,
-                  color: AppTheme.lightText,
-                ),
+                style: TextStyle(fontFamily: AppTheme.fontName, color: AppTheme.lightText),
+              ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: _openAddDevice,
+                icon: const Icon(Icons.add),
+                label: const Text('Agregar dispositivo'),
               ),
             ],
           ),
@@ -263,35 +318,6 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
           onToggle: () => _toggleDevice(devices[index]),
         ),
         childCount: devices.length,
-      ),
-    );
-  }
-
-  Widget _buildFloatingButton() {
-    return ScaleTransition(
-      scale: CurvedAnimation(
-        parent: _fabAnimationController,
-        curve: Curves.easeOutBack,
-      ),
-      child: FloatingActionButton.extended(
-        onPressed: _isConnected ? null : _connectToBroker,
-        backgroundColor: _isConnected ? AppTheme.success : AppTheme.primaryAccent,
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        icon: FaIcon(
-          _isConnected ? FontAwesomeIcons.check : FontAwesomeIcons.wifi,
-          color: Colors.white,
-          size: 18,
-        ),
-        label: Text(
-          _isConnected ? 'Conectado' : 'Conectar Broker',
-          style: const TextStyle(
-            fontFamily: AppTheme.fontName,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-            color: Colors.white,
-          ),
-        ),
       ),
     );
   }
@@ -337,11 +363,26 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
     });
 
     if (_isConnected) {
-      widget.mqttService.publish(device.type.mqttTopic, {
+      widget.mqttService.publish(device.effectiveTopic, {
         'command': device.isOn ? 'on' : 'off',
         'deviceId': device.id,
       });
     }
+  }
+
+  void _openAddDevice() {
+    Navigator.push<Device>(
+      context,
+      MaterialPageRoute(builder: (_) => const AddDeviceScreen()),
+    ).then((newDevice) {
+      if (newDevice != null && mounted) {
+        setState(() => _devices.add(newDevice));
+        _saveDevices();
+        if (_isConnected) {
+          widget.mqttService.subscribe('${newDevice.effectiveTopic}/status');
+        }
+      }
+    });
   }
 
   void _openBrokerConfig() {
@@ -360,5 +401,11 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
   Future<void> _refreshDevices() async {
     await Future.delayed(const Duration(milliseconds: 800));
     if (mounted) setState(() {});
+  }
+
+  Future<void> _saveDevices() async {
+    final sampleIds = Device.sampleDevices.map((d) => d.id).toSet();
+    final custom = _devices.where((d) => !sampleIds.contains(d.id)).toList();
+    await ConfigPersistence.saveDevices(custom);
   }
 }
