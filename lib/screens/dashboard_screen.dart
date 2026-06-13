@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:animations/animations.dart';
 import '../app_theme.dart';
 import '../models/device.dart';
 import '../services/mqtt_service.dart';
 import '../widgets/device_card.dart';
+import '../widgets/bitcoin_ring.dart';
 import 'device_detail_screen.dart';
 import 'broker_config_screen.dart';
 
@@ -99,6 +101,8 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
           slivers: [
             // Stats cards
             SliverToBoxAdapter(child: _buildStatsRow()),
+            // Bitcoin price rings
+            const SliverToBoxAdapter(child: BitcoinRingSection()),
             // Room filter chips
             SliverToBoxAdapter(child: _buildRoomFilter()),
             // Device grid
@@ -115,26 +119,36 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      title: Row(
         children: [
-          const Text(
-            'Domótica',
-            style: TextStyle(
-              fontFamily: AppTheme.fontName,
-              fontWeight: FontWeight.w700,
-              fontSize: 22,
-              color: AppTheme.darkText,
-            ),
+          SvgPicture.asset(
+            'assets/logo.svg',
+            width: 32,
+            height: 32,
           ),
-          Text(
-            _isConnected ? 'Conectado al broker' : 'Desconectado',
-            style: TextStyle(
-              fontFamily: AppTheme.fontName,
-              fontWeight: FontWeight.w400,
-              fontSize: 12,
-              color: _isConnected ? AppTheme.success : AppTheme.error,
-            ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Domótica',
+                style: TextStyle(
+                  fontFamily: AppTheme.fontName,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 22,
+                  color: AppTheme.darkText,
+                ),
+              ),
+              Text(
+                _isConnected ? 'Conectado al broker' : 'Desconectado',
+                style: TextStyle(
+                  fontFamily: AppTheme.fontName,
+                  fontWeight: FontWeight.w400,
+                  fontSize: 12,
+                  color: _isConnected ? AppTheme.success : AppTheme.error,
+                ),
+              ),
+            ],
           ),
         ],
       ),

@@ -14,6 +14,7 @@ dependencies:
   font_awesome_flutter: ^11.0.0
   animations: ^2.2.0
   shared_preferences: ^2.5.5
+  flutter_svg: ^2.0.17
 
 dev_dependencies:
   flutter_test:
@@ -25,6 +26,7 @@ flutter:
   assets:
     - assets/fonts/
     - assets/images/
+    - assets/logo.svg
   fonts:
     - family: WorkSans
       fonts:

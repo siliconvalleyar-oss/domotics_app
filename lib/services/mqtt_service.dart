@@ -47,13 +47,11 @@ class MqttService {
       _client!.onSubscribed = _onSubscribed;
       _client!.pongCallback = _pong;
 
-      // Conexión con autenticación
-      final connMessage = MqttConnectMessage()
-          .authenticateAs(
-              _config.username.isNotEmpty ? _config.username : null,
-              _config.password.isNotEmpty ? _config.password : null)
-          .startClean()
-          .withWillQos(MqttQos.atLeastOnce);
+      // Conexión con autenticación opcional
+      final connMessage = MqttConnectMessage().startClean().withWillQos(MqttQos.atLeastOnce);
+      if (_config.username.isNotEmpty && _config.password.isNotEmpty) {
+        connMessage.authenticateAs(_config.username, _config.password);
+      }
       _client!.connectionMessage = connMessage;
 
       await _client!.connect();
@@ -75,6 +73,7 @@ class MqttService {
     } catch (e) {
       _isConnected = false;
       _connectionController.add(false);
+      print('MQTT connection error: $e');
       return false;
     }
   }
